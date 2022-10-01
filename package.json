@@ -1,0 +1,11 @@
+{
+  "name": "calculating",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^0.27.2",
+    "puppeteer": "^18.0.5",
+    "request": "^2.88.2"
+  }
+}
