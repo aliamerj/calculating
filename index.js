@@ -142,3 +142,4 @@ async function calculations() {
     });
   });
 }
+// end function calculations
