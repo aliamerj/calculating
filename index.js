@@ -1,9 +1,8 @@
 const puppeteer = require("puppeteer");
-const request = require("request");
 const fs = require("fs");
 const { default: axios } = require("axios");
 process.setMaxListeners(50000000000000);
-let URL = "https://.....";
+let URL = "https://nus.edu.sg/nusgiving/news-and-events/photo-gallery/";
 let newSize = 0;
 (async () => {
   console.log("URL :: ", URL);
@@ -45,31 +44,47 @@ let newSize = 0;
   await getAfter(AV_Exists, newSize);
 })();
 async function download(uri, filename) {
-  try {
-    return await new Promise((resolve, reject) => {
-      request.head(uri, function (err, res, body) {
-        request(uri)
-          .pipe(fs.createWriteStream(`images/${filename}`))
-          .on("finish", () => resolve())
-          .on("error", (e) => console.log("err", e));
+  const writer = fs.createWriteStream(`images/${filename}`);
+
+  return axios({
+    method: "get",
+    url: uri,
+    responseType: "stream",
+  }).then((response) => {
+    //ensure that the user can call `then()` only when the file has
+    //been downloaded entirely.
+
+    return new Promise((resolve, reject) => {
+      response.data.pipe(writer);
+      let error = null;
+      writer.on("error", (err) => {
+        error = err;
+        writer.close();
+        reject(err);
+      });
+      writer.on("close", () => {
+        if (!error) {
+          resolve(true);
+        }
+        //no need to call the reject here, as it will have been called in the
+        //'error' stream;
       });
     });
-  } catch (err_1) {
-    return console.log("xxx", err_1.message);
-  }
+  });
 }
+
 // the equation of reduce image Size
 function reduceSize(fileSize) {
-  return (fileSize * 35) / 100;
+  return fileSize * (45 / 100);
 }
 
 // if page has just images no video or Audio
 function pageWithNoVA(finalSize) {
-  return (finalSize * 10) / 100;
+  return finalSize * (10 / 100);
 }
 // if page has video or Audio files
 function pageWithVA(finalSize) {
-  return (finalSize * 15) / 100;
+  return finalSize * (15 / 100);
 }
 async function getAfter(AV_Exists, reducedSize) {
   try {
@@ -98,12 +113,16 @@ async function getAfter(AV_Exists, reducedSize) {
 }
 async function startDownload(images) {
   for (let i = 0; i < images.length; i++) {
-    if (images[i].includes("png")) {
-      await download(images[i], `image-${i}.png`);
-    } else if (images[i].includes("gif")) {
-      await download(images[i], `image-${i}.gif`);
-    } else {
-      await download(images[i], `image-${i}.jpg`);
+    try {
+      if (images[i].includes("png")) {
+        await download(images[i], `image-${i}.png`);
+      } else if (images[i].includes("gif")) {
+        await download(images[i], `image-${i}.gif`);
+      } else {
+        await download(images[i], `image-${i}.jpg`);
+      }
+    } catch (error) {
+      console.log("one of the images has invalid url");
     }
   }
 }
