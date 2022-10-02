@@ -2,7 +2,7 @@ const puppeteer = require("puppeteer");
 const fs = require("fs");
 const { default: axios } = require("axios");
 process.setMaxListeners(50000000000000);
-let URL = "https://nus.edu.sg/nusgiving/news-and-events/photo-gallery/";
+let URL = "https://.....";
 let newSize = 0;
 (async () => {
   console.log("URL :: ", URL);
@@ -10,7 +10,8 @@ let newSize = 0;
   const browser = await puppeteer.launch();
   const page = await browser.newPage();
   await fs.promises.mkdir("images");
-  await page.goto(URL, { waitUntil: "load", timeout: 5000000 });
+  await page.goto(URL, { waitUntil: "networkidle0", timeout: 5000000 });
+  await page.waitForSelector("body");
   const currentPage = await page.evaluate(() => {
     let AV_Exists = false;
     const autoPlayItems = document.querySelectorAll(
@@ -35,12 +36,13 @@ let newSize = 0;
   });
 
   const { images, AV_Exists } = currentPage;
-  await startDownload(images);
+  const downloadFaild = await startDownload(images);
   await calculations();
-
   await browser.close();
   await removeImages();
-  console.log(`successfully reduced the size of ${images.length} images`);
+  console.log(
+    `successfully reduced the size of ${images.length - downloadFaild} images`
+  );
   await getAfter(AV_Exists, newSize);
 })();
 async function download(uri, filename) {
@@ -51,9 +53,6 @@ async function download(uri, filename) {
     url: uri,
     responseType: "stream",
   }).then((response) => {
-    //ensure that the user can call `then()` only when the file has
-    //been downloaded entirely.
-
     return new Promise((resolve, reject) => {
       response.data.pipe(writer);
       let error = null;
@@ -66,8 +65,6 @@ async function download(uri, filename) {
         if (!error) {
           resolve(true);
         }
-        //no need to call the reject here, as it will have been called in the
-        //'error' stream;
       });
     });
   });
@@ -75,33 +72,24 @@ async function download(uri, filename) {
 
 // the equation of reduce image Size
 function reduceSize(fileSize) {
-  return fileSize * (45 / 100);
-}
-
-// if page has just images no video or Audio
-function pageWithNoVA(finalSize) {
-  return finalSize * (10 / 100);
-}
-// if page has video or Audio files
-function pageWithVA(finalSize) {
-  return finalSize * (15 / 100);
+  return fileSize * (35 / 100);
 }
 async function getAfter(AV_Exists, reducedSize) {
   try {
     const res = await axios.get(
       `https://api.websitecarbon.com/site?url=${URL}`
     );
-    const before = res.data.bytes;
+    const before = 7220712; //res.data.bytes;
     console.log("before =", before);
     console.log("reduced =", reducedSize);
     if (AV_Exists) {
-      const after = before - pageWithVA(reducedSize);
+      const after = (before - reducedSize) * (15 / 100);
       console.log("After = ", after);
       console.log(
         `successfully included the video/s or Audio/s in the calculation`
       );
     } else {
-      const after = before - pageWithNoVA(reducedSize);
+      const after = (before - reducedSize) * (10 / 100);
       console.log("After = ", after);
     }
   } catch (error) {
@@ -112,6 +100,7 @@ async function getAfter(AV_Exists, reducedSize) {
   }
 }
 async function startDownload(images) {
+  let downloadFaild = 0;
   for (let i = 0; i < images.length; i++) {
     try {
       if (images[i].includes("png")) {
@@ -122,9 +111,11 @@ async function startDownload(images) {
         await download(images[i], `image-${i}.jpg`);
       }
     } catch (error) {
-      console.log("one of the images has invalid url");
+      console.log("This images Failed to download ", images[i]);
+      downloadFaild++;
     }
   }
+  return downloadFaild;
 }
 async function removeImages() {
   await fs.promises.rm("images", { recursive: true });
