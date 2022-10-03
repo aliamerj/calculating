@@ -3,3 +3,4 @@ start the app
 # 1 install the libs  run => yarn 
 # 2 change the URL 
 # 3 run => node index.js
+![bot Image](https://user-images.githubusercontent.com/76897266/193514497-3018964d-5b10-4dcf-bbe5-1dfe1a2ba607.jpeg)
