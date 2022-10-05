@@ -1,17 +1,19 @@
 const puppeteer = require("puppeteer");
 const fs = require("fs");
+const downloadingImage = require("image-downloader");
 const { default: axios } = require("axios");
+const path = require("path");
 process.setMaxListeners(50000000000000);
 let URL = "https://.....";
 let newSize = 0;
 (async () => {
   console.log("URL :: ", URL);
-
   const browser = await puppeteer.launch();
   const page = await browser.newPage();
   await fs.promises.mkdir("images");
-  await page.goto(URL, { waitUntil: "networkidle0", timeout: 5000000 });
+  await page.goto(URL, { waitUntil: "domcontentloaded", timeout: 50000000 });
   await page.waitForSelector("body");
+
   const currentPage = await page.evaluate(() => {
     let AV_Exists = false;
     const autoPlayItems = document.querySelectorAll(
@@ -36,39 +38,13 @@ let newSize = 0;
   });
 
   const { images, AV_Exists } = currentPage;
-  const downloadFaild = await startDownload(images);
+  await startDownload(images);
   await calculations();
-  await browser.close();
   await removeImages();
-  console.log(
-    `successfully reduced the size of ${images.length - downloadFaild} images`
-  );
+  await browser.close();
+  console.log(`successfully reduced the size of ${images.length} images`);
   await getAfter(AV_Exists, newSize);
 })();
-async function download(uri, filename) {
-  const writer = fs.createWriteStream(`images/${filename}`);
-
-  return axios({
-    method: "get",
-    url: uri,
-    responseType: "stream",
-  }).then((response) => {
-    return new Promise((resolve, reject) => {
-      response.data.pipe(writer);
-      let error = null;
-      writer.on("error", (err) => {
-        error = err;
-        writer.close();
-        reject(err);
-      });
-      writer.on("close", () => {
-        if (!error) {
-          resolve(true);
-        }
-      });
-    });
-  });
-}
 
 // the equation of reduce image Size
 function reduceSize(fileSize) {
@@ -76,9 +52,9 @@ function reduceSize(fileSize) {
 }
 async function getAfter(AV_Exists, reducedSize) {
   try {
-    const res = await axios.get(
-      `https://api.websitecarbon.com/site?url=${URL}`
-    );
+    // const res = await axios.get(
+    //   `https://api.websitecarbon.com/site?url=${URL}`
+    // );
     const before = 7220712; //res.data.bytes;
     console.log("before =", before);
     console.log("reduced =", reducedSize);
@@ -100,22 +76,15 @@ async function getAfter(AV_Exists, reducedSize) {
   }
 }
 async function startDownload(images) {
-  let downloadFaild = 0;
+  const dest = path.join(__dirname, "images");
   for (let i = 0; i < images.length; i++) {
-    try {
-      if (images[i].includes("png")) {
-        await download(images[i], `image-${i}.png`);
-      } else if (images[i].includes("gif")) {
-        await download(images[i], `image-${i}.gif`);
-      } else {
-        await download(images[i], `image-${i}.jpg`);
-      }
-    } catch (error) {
-      console.log("This images Failed to download ", images[i]);
-      downloadFaild++;
-    }
+    downloadingImage
+      .image({ url: images[i], dest, extractFilename: true })
+      .then((dd) => {
+        console.log("Saved to", dd);
+      })
+      .catch((err) => console.log("err", err));
   }
-  return downloadFaild;
 }
 async function removeImages() {
   await fs.promises.rm("images", { recursive: true });
